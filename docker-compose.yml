@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  eg4-monitor:
+    build: .
+    container_name: eg4-battery-monitor
+    restart: unless-stopped
+    environment:
+      - EG4_BATTERY_IP=192.168.130.139
+      - EG4_BATTERY_PORT=4196
+      - EG4_DEVICE_ID=1
+      - EG4_MQTT_BROKER=192.168.128.149
+      - EG4_MQTT_PORT=1883
+      - EG4_MQTT_USER=blake
+      - EG4_MQTT_PASS=Glassess14
+      - EG4_POLL_INTERVAL=30
+    # If using host network (recommended for local network access)
+    network_mode: host
+    # Or use bridge network with explicit port mapping if needed
+    # networks:
+    #   - default

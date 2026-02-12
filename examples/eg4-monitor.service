@@ -1,0 +1,28 @@
+[Unit]
+Description=EG4 Battery Monitor
+Documentation=https://github.com/yourusername/eg4-battery-monitor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/eg4-battery-monitor
+ExecStart=/home/pi/eg4-battery-monitor/venv/bin/eg4-monitor --no-ui --config /home/pi/eg4-battery-monitor/config.yaml
+Restart=always
+RestartSec=10
+
+# Environment variables (alternative to config file)
+# Environment=EG4_BATTERY_IP=192.168.130.139
+# Environment=EG4_MQTT_BROKER=192.168.128.149
+# Environment=EG4_MQTT_USER=homeassistant
+# Environment=EG4_MQTT_PASS=your-password
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=eg4-monitor
+
+[Install]
+WantedBy=multi-user.target

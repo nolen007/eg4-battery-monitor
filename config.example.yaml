@@ -1,0 +1,35 @@
+# EG4 Battery Monitor Configuration
+# Copy this file to config.yaml and edit with your settings
+
+battery:
+  # IP address of the Waveshare RS485-to-ETH adapter
+  ip: "192.168.130.139"
+  # Modbus TCP port (Waveshare default is usually 4196 or 502)
+  port: 4196
+  # Modbus device ID (DIP switch setting on battery, usually 1)
+  device_id: 1
+
+mqtt:
+  # Home Assistant MQTT broker address
+  broker: "192.168.128.149"
+  port: 1883
+  username: "homeassistant"
+  password: "your-mqtt-password"
+  # Base topic for Home Assistant auto-discovery
+  base_topic: "homeassistant"
+  # Optional: custom client ID (auto-generated if not set)
+  # client_id: "eg4_battery_monitor"
+
+monitor:
+  # How often to poll the battery (seconds)
+  interval: 30
+  # Show terminal UI (set to false for headless/service mode)
+  ui_enabled: true
+  # Enable debug logging
+  debug: false
+
+device:
+  # Device name shown in Home Assistant
+  name: "EG4 WallMount 280Ah"
+  # Device ID used in entity IDs (no spaces)
+  id: "eg4_wallmount_280ah"

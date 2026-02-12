@@ -1,0 +1,98 @@
+# Home Assistant Lovelace Card Examples
+# Add these to your dashboard configuration
+
+# Simple Entities Card
+type: entities
+title: EG4 Battery
+show_header_toggle: false
+entities:
+  - entity: sensor.eg4_wallmount_280ah_soc
+    name: State of Charge
+    icon: mdi:battery
+  - entity: sensor.eg4_wallmount_280ah_power
+    name: Power
+    icon: mdi:flash
+  - entity: sensor.eg4_wallmount_280ah_voltage
+    name: Voltage
+  - entity: sensor.eg4_wallmount_280ah_current
+    name: Current
+  - entity: sensor.eg4_wallmount_280ah_temperature
+    name: Temperature
+  - entity: sensor.eg4_wallmount_280ah_cell_delta
+    name: Cell Balance
+  - entity: binary_sensor.eg4_wallmount_280ah_online
+    name: Status
+
+---
+
+# Gauge Card for SOC
+type: gauge
+entity: sensor.eg4_wallmount_280ah_soc
+name: Battery
+unit: '%'
+min: 0
+max: 100
+severity:
+  green: 50
+  yellow: 20
+  red: 10
+
+---
+
+# Glance Card
+type: glance
+title: EG4 Battery Quick View
+entities:
+  - entity: sensor.eg4_wallmount_280ah_soc
+    name: SOC
+  - entity: sensor.eg4_wallmount_280ah_power
+    name: Power
+  - entity: sensor.eg4_wallmount_280ah_temperature
+    name: Temp
+  - entity: sensor.eg4_wallmount_280ah_cell_delta
+    name: Balance
+
+---
+
+# History Graph
+type: history-graph
+title: Battery History
+hours_to_show: 24
+entities:
+  - entity: sensor.eg4_wallmount_280ah_soc
+    name: SOC
+  - entity: sensor.eg4_wallmount_280ah_power
+    name: Power
+
+---
+
+# Conditional Card (show alarm when triggered)
+type: conditional
+conditions:
+  - entity: sensor.eg4_wallmount_280ah_alarm_count
+    state_not: '0'
+card:
+  type: markdown
+  content: |
+    ## ⚠️ Battery Alarm Active
+    Check the battery immediately!
+
+---
+
+# Custom Button Card (requires custom:button-card from HACS)
+type: custom:button-card
+entity: sensor.eg4_wallmount_280ah_soc
+name: EG4 Battery
+icon: mdi:battery
+show_state: true
+show_name: true
+styles:
+  card:
+    - height: 150px
+  icon:
+    - color: |
+        [[[
+          if (entity.state > 50) return 'green';
+          if (entity.state > 20) return 'orange';
+          return 'red';
+        ]]]
