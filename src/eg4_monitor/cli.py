@@ -131,6 +131,21 @@ Examples:
         help="Output single JSON reading and exit",
     )
     
+    # Web server settings
+    web_group = parser.add_argument_group("Web Server Settings")
+    web_group.add_argument(
+        "--web-port",
+        type=int,
+        metavar="PORT",
+        default=5000,
+        help="Web server port [default: 5000]",
+    )
+    web_group.add_argument(
+        "--no-web",
+        action="store_true",
+        help="Disable web GUI",
+    )
+    
     return parser.parse_args()
 
 
@@ -178,6 +193,12 @@ def build_config(args) -> Config:
         config.ui_enabled = False
     if args.debug:
         config.debug = True
+    
+    # Web settings
+    if args.web_port:
+        config.web_port = args.web_port
+    if args.no_web:
+        config.web_enabled = False
     
     return config
 

@@ -10,6 +10,7 @@ from .config import Config
 from .battery import BatteryData, EG4ModbusReader
 from .mqtt import MQTTPublisher
 from .ui import TerminalUI, HeadlessUI
+from .web import WebServer
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +23,13 @@ class BatteryMonitor:
         self.reader = EG4ModbusReader(config)
         self.mqtt = MQTTPublisher(config)
         self.ui = TerminalUI() if config.ui_enabled else HeadlessUI()
+        self.web: Optional[WebServer] = None
         self.running = False
         self.data = BatteryData()
+        
+        # Initialize web server if enabled
+        if config.web_enabled:
+            self.web = WebServer(host=config.web_host, port=config.web_port)
     
     def start(self):
         """Start the battery monitor."""
@@ -33,6 +39,11 @@ class BatteryMonitor:
         logger.info(f"Battery: {self.config.battery_ip}:{self.config.battery_port}")
         logger.info(f"MQTT: {self.config.mqtt_broker}:{self.config.mqtt_port}")
         logger.info(f"Poll interval: {self.config.poll_interval}s")
+        
+        # Start web server if enabled
+        if self.web:
+            self.web.start()
+            logger.info(f"Web GUI: http://{self.config.web_host}:{self.config.web_port}")
         
         # Initial connections
         if not self.reader.connect():
@@ -63,14 +74,21 @@ class BatteryMonitor:
         # Publish to MQTT
         self.mqtt.publish(self.data)
         
-        # Update UI
-        self.ui.render(self.data, self.mqtt.connected)
+        # Update web server data
+        if self.web:
+            self.web.update_data(self.data, self.mqtt.connected)
+        
+        # Update terminal UI
+        if self.config.ui_enabled:
+            self.ui.render(self.data, self.mqtt.connected)
     
     def stop(self):
         """Stop the battery monitor."""
         self.running = False
         self.reader.disconnect()
         self.mqtt.disconnect()
+        if self.web:
+            self.web.stop()
         logger.info("Battery monitor stopped")
     
     def poll_once(self) -> BatteryData:

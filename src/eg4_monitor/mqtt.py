@@ -127,6 +127,10 @@ class MQTTPublisher:
             ("alarm_count", "Alarm Count", "", None, "measurement"),
         ]
         
+        # Add individual cell voltage sensors
+        for i in range(1, 17):
+            sensors.append((f"cell_{i}_voltage", f"Cell {i} Voltage", "V", "voltage", "measurement"))
+        
         # Publish sensor discovery
         for sensor_id, name, unit, device_class, state_class in sensors:
             config_topic = f"{base}/sensor/{device_id}_{sensor_id}/config"
@@ -182,7 +186,7 @@ class MQTTPublisher:
         device_id = self.config.device_id_slug
         base = self.config.mqtt_base_topic
         
-        # Publish state
+        # Publish state with all cell voltages
         state_topic = f"{base}/sensor/{device_id}/state"
         state_payload = {
             "soc": data.soc,
@@ -201,6 +205,10 @@ class MQTTPublisher:
             "online": data.online,
             "timestamp": data.timestamp,
         }
+        
+        # Add individual cell voltages to state payload
+        for i, voltage in enumerate(data.cell_voltages, 1):
+            state_payload[f"cell_{i}_voltage"] = round(voltage, 3)
         
         self.client.publish(state_topic, json.dumps(state_payload), retain=True)
         

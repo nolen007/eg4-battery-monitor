@@ -17,7 +17,7 @@ Example usage:
     monitor.start()
 """
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 __author__ = "Your Name"
 __license__ = "MIT"
 
@@ -25,6 +25,7 @@ from .config import Config
 from .battery import BatteryData, EG4ModbusReader
 from .mqtt import MQTTPublisher
 from .monitor import BatteryMonitor
+from .web import WebServer
 
 __all__ = [
     "Config",
@@ -32,4 +33,5 @@ __all__ = [
     "EG4ModbusReader",
     "MQTTPublisher",
     "BatteryMonitor",
+    "WebServer",
 ]

@@ -27,6 +27,11 @@ class Config:
     mqtt_base_topic: str = "homeassistant"
     mqtt_client_id: str = ""
     
+    # Web Server Settings
+    web_enabled: bool = True
+    web_host: str = "0.0.0.0"
+    web_port: int = 5000
+    
     # Monitor Settings
     poll_interval: int = 30
     ui_enabled: bool = True
@@ -69,6 +74,13 @@ class Config:
             config.mqtt_password = mqtt.get("password", config.mqtt_password)
             config.mqtt_base_topic = mqtt.get("base_topic", config.mqtt_base_topic)
             config.mqtt_client_id = mqtt.get("client_id", config.mqtt_client_id)
+        
+        # Web settings
+        if "web" in data:
+            web = data["web"]
+            config.web_enabled = web.get("enabled", config.web_enabled)
+            config.web_host = web.get("host", config.web_host)
+            config.web_port = web.get("port", config.web_port)
         
         # Monitor settings
         if "monitor" in data:
@@ -122,6 +134,11 @@ class Config:
                 "username": self.mqtt_username,
                 "password": "***" if self.mqtt_password else "",
                 "base_topic": self.mqtt_base_topic,
+            },
+            "web": {
+                "enabled": self.web_enabled,
+                "host": self.web_host,
+                "port": self.web_port,
             },
             "monitor": {
                 "interval": self.poll_interval,

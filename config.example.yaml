@@ -20,6 +20,14 @@ mqtt:
   # Optional: custom client ID (auto-generated if not set)
   # client_id: "eg4_battery_monitor"
 
+web:
+  # Enable web GUI (accessible at http://your-ip:5000)
+  enabled: true
+  # Host to bind to (0.0.0.0 = all interfaces)
+  host: "0.0.0.0"
+  # Web server port
+  port: 5000
+
 monitor:
   # How often to poll the battery (seconds)
   interval: 30
