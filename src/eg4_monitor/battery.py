@@ -277,7 +277,9 @@ class EG4ModbusReader:
         data.cell_delta = (data.cell_max - data.cell_min) * 1000
         
         # Read cell voltages (registers 113-128)
-        cell_regs = self._read_registers(CELL_VOLTAGE_START, CELL_VOLTAGE_COUNT)
+        cell_start = EG4_REGISTER_MAP["cell_voltage_start"]
+        cell_count = EG4_REGISTER_MAP["cell_voltage_count"]
+        cell_regs = self._read_registers(cell_start, cell_count)
         if cell_regs:
             data.cell_voltages = [v / 1000.0 for v in cell_regs]
         
