@@ -9,8 +9,6 @@ from typing import Optional, List
 
 from pymodbus.client import ModbusTcpClient
 
-from .config import Config
-
 logger = logging.getLogger(__name__)
 
 
@@ -18,30 +16,41 @@ logger = logging.getLogger(__name__)
 # EG4 WALLMOUNT 280Ah REGISTER MAP
 # =============================================================================
 
-REGISTER_MAP = {
-    # Register: (name, scale_divisor, description)
-    19: ("soc", 1, "State of Charge (%)"),
-    21: ("soh", 1, "State of Health (%)"),
-    22: ("voltage", 100, "Pack Voltage (V)"),
-    24: ("current", 100, "Current (A) - signed"),
-    25: ("remaining_kwh", 100, "Remaining Energy (kWh)"),
-    26: ("design_capacity", 100, "Design Capacity (Ah)"),
-    27: ("full_capacity", 100, "Full Charge Capacity (Ah)"),
-    28: ("remaining_ah", 10, "Remaining Capacity (Ah)"),
-    30: ("temperature", 10, "Temperature (°C)"),
-    32: ("soh_alt", 1, "State of Health Alt (%)"),
-    33: ("max_voltage", 100, "Max Charge Voltage (V)"),
-    35: ("max_current", 100, "Max Current (A)"),
-    37: ("cell_max", 1000, "Highest Cell Voltage (V)"),
-    38: ("cell_min", 1000, "Lowest Cell Voltage (V)"),
-    39: ("cycle_count", 1, "Charge Cycles"),
-    40: ("status", 1, "Status Flags"),
-    41: ("cell_count", 1, "Number of Cells"),
+EG4_REGISTER_MAP = {
+    "soc": 19,
+    "soh": 21,
+    "voltage": 22,
+    "current": 24,
+    "remaining_kwh": 25,
+    "design_capacity": 26,
+    "full_capacity": 27,
+    "remaining_ah": 28,
+    "temperature": 30,
+    "max_voltage": 33,
+    "max_current": 35,
+    "cell_max": 37,
+    "cell_min": 38,
+    "cycle_count": 39,
+    "status": 40,
+    "cell_count": 41,
+    "cell_voltage_start": 113,
+    "cell_voltage_count": 16,
 }
 
-# Cell voltage registers
-CELL_VOLTAGE_START = 113
-CELL_VOLTAGE_COUNT = 16
+# =============================================================================
+# ECO-WORTHY / PACE BMS REGISTER MAP
+# =============================================================================
+
+ECOWORTHY_REGISTER_MAP = {
+    "voltage": 1,           # ÷100
+    "soc": 2,               # direct
+    "soh": 3,               # direct
+    "design_capacity": 4,   # ÷100 (in Ah)
+    "cell_voltage_start": 15,
+    "cell_voltage_count": 16,
+    "temperature": 31,      # ÷10 (first temp sensor)
+    "max_voltage": 107,     # ÷100 (from extended registers)
+}
 
 # Alarm thresholds
 ALARM_THRESHOLDS = {
@@ -150,13 +159,14 @@ def slugify(name: str) -> str:
 
 
 class EG4ModbusReader:
-    """Reads data from EG4 battery via Modbus TCP."""
+    """Reads data from EG4/ECO-WORTHY battery via Modbus TCP."""
     
     def __init__(self, battery_config):
         """Initialize with a BatteryConfig object."""
         self.config = battery_config
         self.name = battery_config.name
         self.battery_id = slugify(battery_config.name)
+        self.protocol = battery_config.protocol
         self.client: Optional[ModbusTcpClient] = None
         self._connected = False
     
@@ -230,6 +240,14 @@ class EG4ModbusReader:
             if not self.connect():
                 return data
         
+        # Use appropriate protocol
+        if self.protocol == "ecoworthy":
+            return self._poll_ecoworthy(data)
+        else:
+            return self._poll_eg4(data)
+    
+    def _poll_eg4(self, data: BatteryData) -> BatteryData:
+        """Poll using EG4 register map."""
         # Read main registers (0-60)
         regs = self._read_registers(0, 60)
         if not regs:
@@ -238,7 +256,7 @@ class EG4ModbusReader:
         
         data.online = True
         
-        # Parse registers
+        # Parse registers - EG4 format
         data.soc = float(regs[19])
         data.soh = float(regs[21])
         data.voltage = regs[22] / 100.0
@@ -258,10 +276,69 @@ class EG4ModbusReader:
         data.cell_count = regs[41]
         data.cell_delta = (data.cell_max - data.cell_min) * 1000
         
-        # Read cell voltages
+        # Read cell voltages (registers 113-128)
         cell_regs = self._read_registers(CELL_VOLTAGE_START, CELL_VOLTAGE_COUNT)
         if cell_regs:
             data.cell_voltages = [v / 1000.0 for v in cell_regs]
+        
+        # Check for alarms
+        data.alarms = self._check_alarms(data)
+        data.alarm_count = len(data.alarms)
+        
+        logger.debug(f"Polled {self.name}: SOC={data.soc}%, V={data.voltage}V, I={data.current}A")
+        
+        return data
+    
+    def _poll_ecoworthy(self, data: BatteryData) -> BatteryData:
+        """Poll using ECO-WORTHY/PACE register map."""
+        # Read main registers (0-40)
+        regs = self._read_registers(0, 40)
+        if not regs:
+            self._connected = False
+            return data
+        
+        data.online = True
+        
+        # Parse registers - ECO-WORTHY format
+        # Reg 1: Voltage (÷100)
+        # Reg 2: SOC
+        # Reg 3: SOH
+        # Reg 4: Remaining Ah (÷100)
+        # Reg 5: Design Capacity (÷100)
+        # Reg 6: Full Capacity (÷100)
+        # Reg 7: Current (÷100, signed)
+        # Regs 15-30: Cell voltages (÷1000)
+        # Regs 31-36: Temperatures (÷10)
+        
+        data.voltage = regs[1] / 100.0
+        data.soc = float(regs[2])
+        data.soh = float(regs[3])
+        data.remaining_ah = regs[4] / 100.0
+        data.design_capacity = regs[5] / 100.0
+        data.full_capacity = regs[6] / 100.0
+        data.current = self._signed16(regs[7]) / 100.0
+        data.power = data.voltage * data.current
+        data.remaining_kwh = data.voltage * data.remaining_ah / 1000.0
+        
+        # Cell voltages at registers 15-30 (16 cells)
+        data.cell_voltages = [regs[i] / 1000.0 for i in range(15, 31)]
+        data.cell_count = 16
+        
+        # Filter out invalid cells (65.535V = 0xFFFF)
+        valid_cells = [v for v in data.cell_voltages if v < 5.0]
+        if valid_cells:
+            data.cell_min = min(valid_cells)
+            data.cell_max = max(valid_cells)
+            data.cell_delta = (data.cell_max - data.cell_min) * 1000
+        
+        # Temperature at register 31 (÷10)
+        data.temperature = regs[31] / 10.0
+        
+        # These aren't available in same format, use defaults
+        data.cycle_count = 0
+        data.status = 0
+        data.max_voltage = 58.4  # Typical for 16S LiFePO4
+        data.max_current = 200.0
         
         # Check for alarms
         data.alarms = self._check_alarms(data)

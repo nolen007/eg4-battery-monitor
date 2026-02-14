@@ -7,14 +7,13 @@ batteries:
     ip: "192.168.130.139"
     port: 4196
     device_id: 1
-    protocol: "eg4"
+    protocol: "eg4"  # Use "eg4" for EG4 batteries
   
-  # Add more batteries as needed:
-  # - name: "ECO-WORTHY 314Ah"
-  #   ip: "192.168.130.95"
-  #   port: 4196
-  #   device_id: 1
-  #   protocol: "eg4"
+  - name: "ECO-WORTHY 314Ah"
+    ip: "192.168.130.95"
+    port: 4196
+    device_id: 1
+    protocol: "ecoworthy"  # Use "ecoworthy" for ECO-WORTHY/PACE BMS batteries
 
 mqtt:
   # Home Assistant MQTT broker address
