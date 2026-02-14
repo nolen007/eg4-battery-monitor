@@ -308,7 +308,7 @@ class EG4ModbusReader:
         # Reg 6: Full Capacity (÷100)
         # Reg 7: Current (÷100, signed)
         # Regs 15-30: Cell voltages (÷1000)
-        # Regs 31-36: Temperatures (÷10)
+        # Regs 31-35: Temperatures (÷10)
         
         data.voltage = regs[1] / 100.0
         data.soc = float(regs[2])
@@ -324,15 +324,20 @@ class EG4ModbusReader:
         data.cell_voltages = [regs[i] / 1000.0 for i in range(15, 31)]
         data.cell_count = 16
         
-        # Filter out invalid cells (65.535V = 0xFFFF)
-        valid_cells = [v for v in data.cell_voltages if v < 5.0]
+        # Filter out invalid cells (65.535V = 0xFFFF) and calculate min/max
+        valid_cells = [v for v in data.cell_voltages if 2.0 < v < 4.5]
         if valid_cells:
             data.cell_min = min(valid_cells)
             data.cell_max = max(valid_cells)
             data.cell_delta = (data.cell_max - data.cell_min) * 1000
+        else:
+            data.cell_min = 0
+            data.cell_max = 0
+            data.cell_delta = 0
         
-        # Temperature at register 31 (÷10)
-        data.temperature = regs[31] / 10.0
+        # Temperature - average of sensors at registers 31-35
+        temps = [regs[i] / 10.0 for i in range(31, 36) if regs[i] < 1000]
+        data.temperature = sum(temps) / len(temps) if temps else 0
         
         # These aren't available in same format, use defaults
         data.cycle_count = 0
