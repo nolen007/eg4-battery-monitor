@@ -65,6 +65,10 @@ ALARM_THRESHOLDS = {
 class BatteryData:
     """Battery telemetry data."""
     
+    # Identity
+    name: str = ""
+    battery_id: str = ""
+    
     timestamp: str = ""
     online: bool = False
     
@@ -104,6 +108,8 @@ class BatteryData:
     def to_dict(self) -> dict:
         """Convert to dictionary for JSON serialization."""
         return {
+            "name": self.name,
+            "battery_id": self.battery_id,
             "timestamp": self.timestamp,
             "online": self.online,
             "soc": self.soc,
@@ -134,11 +140,23 @@ class BatteryData:
 # MODBUS READER
 # =============================================================================
 
+def slugify(name: str) -> str:
+    """Convert a name to a slug for IDs."""
+    import re
+    slug = name.lower()
+    slug = re.sub(r'[^a-z0-9]+', '_', slug)
+    slug = slug.strip('_')
+    return slug
+
+
 class EG4ModbusReader:
     """Reads data from EG4 battery via Modbus TCP."""
     
-    def __init__(self, config: Config):
-        self.config = config
+    def __init__(self, battery_config):
+        """Initialize with a BatteryConfig object."""
+        self.config = battery_config
+        self.name = battery_config.name
+        self.battery_id = slugify(battery_config.name)
         self.client: Optional[ModbusTcpClient] = None
         self._connected = False
     
@@ -150,21 +168,21 @@ class EG4ModbusReader:
         """Connect to the battery via Modbus TCP."""
         try:
             self.client = ModbusTcpClient(
-                host=self.config.battery_ip,
-                port=self.config.battery_port,
+                host=self.config.ip,
+                port=self.config.port,
                 timeout=10,
             )
             self._connected = self.client.connect()
             
             if self._connected:
-                logger.info(f"Connected to battery at {self.config.battery_ip}:{self.config.battery_port}")
+                logger.info(f"Connected to {self.name} at {self.config.ip}:{self.config.port}")
             else:
-                logger.warning(f"Failed to connect to battery at {self.config.battery_ip}")
+                logger.warning(f"Failed to connect to {self.name} at {self.config.ip}")
             
             return self._connected
             
         except Exception as e:
-            logger.error(f"Modbus connection error: {e}")
+            logger.error(f"Modbus connection error for {self.name}: {e}")
             self._connected = False
             return False
     
@@ -173,7 +191,7 @@ class EG4ModbusReader:
         if self.client:
             self.client.close()
         self._connected = False
-        logger.info("Disconnected from battery")
+        logger.info(f"Disconnected from {self.name}")
     
     def _read_registers(self, address: int, count: int) -> Optional[List[int]]:
         """Read holding registers from the battery."""
@@ -185,13 +203,13 @@ class EG4ModbusReader:
             )
             
             if result.isError():
-                logger.warning(f"Modbus read error at {address}: {result}")
+                logger.warning(f"Modbus read error at {address} for {self.name}: {result}")
                 return None
             
             return result.registers
             
         except Exception as e:
-            logger.error(f"Modbus read exception: {e}")
+            logger.error(f"Modbus read exception for {self.name}: {e}")
             return None
     
     @staticmethod
@@ -201,7 +219,11 @@ class EG4ModbusReader:
     
     def poll(self) -> BatteryData:
         """Poll the battery and return current data."""
-        data = BatteryData(timestamp=datetime.now().isoformat())
+        data = BatteryData(
+            name=self.name,
+            battery_id=self.battery_id,
+            timestamp=datetime.now().isoformat(),
+        )
         
         # Ensure connection
         if not self.connected:
@@ -245,7 +267,7 @@ class EG4ModbusReader:
         data.alarms = self._check_alarms(data)
         data.alarm_count = len(data.alarms)
         
-        logger.debug(f"Polled battery: SOC={data.soc}%, V={data.voltage}V, I={data.current}A")
+        logger.debug(f"Polled {self.name}: SOC={data.soc}%, V={data.voltage}V, I={data.current}A")
         
         return data
     

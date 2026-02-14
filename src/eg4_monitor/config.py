@@ -11,13 +11,21 @@ import yaml
 
 
 @dataclass
+class BatteryConfig:
+    """Configuration for a single battery."""
+    name: str = "Battery 1"
+    ip: str = "192.168.130.139"
+    port: int = 4196
+    device_id: int = 1
+    protocol: str = "eg4"  # eg4, pace, modbus
+
+
+@dataclass
 class Config:
     """Configuration settings for the battery monitor."""
     
-    # Modbus/Battery Settings
-    battery_ip: str = "192.168.130.139"
-    battery_port: int = 4196
-    device_id: int = 1
+    # Battery Settings (list of batteries)
+    batteries: list = None
     
     # MQTT Settings
     mqtt_broker: str = "localhost"
@@ -37,9 +45,10 @@ class Config:
     ui_enabled: bool = True
     debug: bool = False
     
-    # Device identification
-    device_name: str = "EG4 WallMount 280Ah"
-    device_id_slug: str = "eg4_wallmount_280ah"
+    def __post_init__(self):
+        if self.batteries is None:
+            # Default single battery for backwards compatibility
+            self.batteries = [BatteryConfig()]
     
     @classmethod
     def from_file(cls, path: str | Path) -> "Config":
@@ -58,12 +67,27 @@ class Config:
         """Create config from a dictionary."""
         config = cls()
         
-        # Battery settings
-        if "battery" in data:
+        # Battery settings - support both old single-battery and new multi-battery format
+        if "batteries" in data:
+            config.batteries = []
+            for batt in data["batteries"]:
+                config.batteries.append(BatteryConfig(
+                    name=batt.get("name", "Battery"),
+                    ip=batt.get("ip", "192.168.130.139"),
+                    port=batt.get("port", 4196),
+                    device_id=batt.get("device_id", 1),
+                    protocol=batt.get("protocol", "eg4"),
+                ))
+        elif "battery" in data:
+            # Legacy single battery config
             battery = data["battery"]
-            config.battery_ip = battery.get("ip", config.battery_ip)
-            config.battery_port = battery.get("port", config.battery_port)
-            config.device_id = battery.get("device_id", config.device_id)
+            config.batteries = [BatteryConfig(
+                name=battery.get("name", "EG4 WallMount 280Ah"),
+                ip=battery.get("ip", "192.168.130.139"),
+                port=battery.get("port", 4196),
+                device_id=battery.get("device_id", 1),
+                protocol=battery.get("protocol", "eg4"),
+            )]
         
         # MQTT settings
         if "mqtt" in data:
@@ -89,12 +113,6 @@ class Config:
             config.ui_enabled = monitor.get("ui_enabled", config.ui_enabled)
             config.debug = monitor.get("debug", config.debug)
         
-        # Device settings
-        if "device" in data:
-            device = data["device"]
-            config.device_name = device.get("name", config.device_name)
-            config.device_id_slug = device.get("id", config.device_id_slug)
-        
         return config
     
     @classmethod
@@ -102,10 +120,14 @@ class Config:
         """Load configuration from environment variables."""
         config = cls()
         
-        # Battery settings
-        config.battery_ip = os.getenv("EG4_BATTERY_IP", config.battery_ip)
-        config.battery_port = int(os.getenv("EG4_BATTERY_PORT", config.battery_port))
-        config.device_id = int(os.getenv("EG4_DEVICE_ID", config.device_id))
+        # Battery settings (single battery from env for simplicity)
+        config.batteries = [BatteryConfig(
+            name=os.getenv("EG4_BATTERY_NAME", "Battery 1"),
+            ip=os.getenv("EG4_BATTERY_IP", "192.168.130.139"),
+            port=int(os.getenv("EG4_BATTERY_PORT", 4196)),
+            device_id=int(os.getenv("EG4_DEVICE_ID", 1)),
+            protocol=os.getenv("EG4_PROTOCOL", "eg4"),
+        )]
         
         # MQTT settings
         config.mqtt_broker = os.getenv("EG4_MQTT_BROKER", config.mqtt_broker)
@@ -123,11 +145,16 @@ class Config:
     def to_dict(self) -> dict:
         """Export configuration as a dictionary."""
         return {
-            "battery": {
-                "ip": self.battery_ip,
-                "port": self.battery_port,
-                "device_id": self.device_id,
-            },
+            "batteries": [
+                {
+                    "name": b.name,
+                    "ip": b.ip,
+                    "port": b.port,
+                    "device_id": b.device_id,
+                    "protocol": b.protocol,
+                }
+                for b in self.batteries
+            ],
             "mqtt": {
                 "broker": self.mqtt_broker,
                 "port": self.mqtt_port,
@@ -144,10 +171,6 @@ class Config:
                 "interval": self.poll_interval,
                 "ui_enabled": self.ui_enabled,
                 "debug": self.debug,
-            },
-            "device": {
-                "name": self.device_name,
-                "id": self.device_id_slug,
             },
         }
     

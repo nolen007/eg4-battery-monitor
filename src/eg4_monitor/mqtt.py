@@ -5,7 +5,7 @@ MQTT Publisher with Home Assistant auto-discovery support.
 import json
 import logging
 import time
-from typing import Optional
+from typing import Optional, Set
 
 import paho.mqtt.client as mqtt
 
@@ -22,7 +22,7 @@ class MQTTPublisher:
         self.config = config
         self.client: Optional[mqtt.Client] = None
         self._connected = False
-        self._discovery_sent = False
+        self._discovered_batteries: Set[str] = set()
     
     @property
     def connected(self) -> bool:
@@ -83,7 +83,7 @@ class MQTTPublisher:
     def _on_disconnect(self, client, userdata, flags, reason_code, properties=None):
         """Handle MQTT disconnection."""
         self._connected = False
-        self._discovery_sent = False
+        self._discovered_batteries.clear()
         logger.warning(f"Disconnected from MQTT broker: {reason_code}")
     
     def disconnect(self):
@@ -94,21 +94,19 @@ class MQTTPublisher:
         self._connected = False
         logger.info("Disconnected from MQTT broker")
     
-    def _send_discovery(self):
-        """Send Home Assistant MQTT discovery messages."""
+    def _send_discovery(self, battery_id: str, battery_name: str):
+        """Send Home Assistant MQTT discovery messages for a battery."""
         base = self.config.mqtt_base_topic
-        device_id = self.config.device_id_slug
-        device_name = self.config.device_name
         
         device_info = {
-            "identifiers": [device_id],
-            "name": device_name,
+            "identifiers": [battery_id],
+            "name": battery_name,
             "manufacturer": "EG4 Electronics",
-            "model": "WallMount Indoor 280Ah",
+            "model": "LiFePO4 Battery",
             "sw_version": "1.0",
         }
         
-        state_topic = f"{base}/sensor/{device_id}/state"
+        state_topic = f"{base}/sensor/{battery_id}/state"
         
         # Define sensors: (id, name, unit, device_class, state_class)
         sensors = [
@@ -133,11 +131,11 @@ class MQTTPublisher:
         
         # Publish sensor discovery
         for sensor_id, name, unit, device_class, state_class in sensors:
-            config_topic = f"{base}/sensor/{device_id}_{sensor_id}/config"
+            config_topic = f"{base}/sensor/{battery_id}_{sensor_id}/config"
             
             payload = {
-                "name": f"{device_name} {name}",
-                "unique_id": f"{device_id}_{sensor_id}",
+                "name": f"{battery_name} {name}",
+                "unique_id": f"{battery_id}_{sensor_id}",
                 "state_topic": state_topic,
                 "value_template": f"{{{{ value_json.{sensor_id} }}}}",
                 "device": device_info,
@@ -158,11 +156,11 @@ class MQTTPublisher:
         ]
         
         for sensor_id, name, device_class in binary_sensors:
-            config_topic = f"{base}/binary_sensor/{device_id}_{sensor_id}/config"
+            config_topic = f"{base}/binary_sensor/{battery_id}_{sensor_id}/config"
             
             payload = {
-                "name": f"{device_name} {name}",
-                "unique_id": f"{device_id}_{sensor_id}",
+                "name": f"{battery_name} {name}",
+                "unique_id": f"{battery_id}_{sensor_id}",
                 "state_topic": state_topic,
                 "value_template": f"{{{{ 'ON' if value_json.{sensor_id} else 'OFF' }}}}",
                 "device_class": device_class,
@@ -171,8 +169,8 @@ class MQTTPublisher:
             
             self.client.publish(config_topic, json.dumps(payload), retain=True)
         
-        self._discovery_sent = True
-        logger.info("MQTT discovery messages sent")
+        self._discovered_batteries.add(battery_id)
+        logger.info(f"MQTT discovery messages sent for {battery_name}")
     
     def publish(self, data: BatteryData):
         """Publish battery data to MQTT."""
@@ -180,14 +178,16 @@ class MQTTPublisher:
             if not self.connect():
                 return
         
-        if not self._discovery_sent:
-            self._send_discovery()
+        battery_id = data.battery_id
+        battery_name = data.name
         
-        device_id = self.config.device_id_slug
+        if battery_id not in self._discovered_batteries:
+            self._send_discovery(battery_id, battery_name)
+        
         base = self.config.mqtt_base_topic
         
         # Publish state with all cell voltages
-        state_topic = f"{base}/sensor/{device_id}/state"
+        state_topic = f"{base}/sensor/{battery_id}/state"
         state_payload = {
             "soc": data.soc,
             "soh": data.soh,
@@ -213,7 +213,7 @@ class MQTTPublisher:
         self.client.publish(state_topic, json.dumps(state_payload), retain=True)
         
         # Publish attributes
-        attr_topic = f"{base}/sensor/{device_id}/attributes"
+        attr_topic = f"{base}/sensor/{battery_id}/attributes"
         attr_payload = {
             "alarms": data.alarms,
             "cell_voltages": [round(v, 3) for v in data.cell_voltages],
@@ -225,4 +225,4 @@ class MQTTPublisher:
         
         self.client.publish(attr_topic, json.dumps(attr_payload), retain=True)
         
-        logger.debug(f"Published battery data to MQTT")
+        logger.debug(f"Published data for {battery_name} to MQTT")

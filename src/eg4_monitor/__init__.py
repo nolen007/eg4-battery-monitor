@@ -17,11 +17,11 @@ Example usage:
     monitor.start()
 """
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 __author__ = "Your Name"
 __license__ = "MIT"
 
-from .config import Config
+from .config import Config, BatteryConfig
 from .battery import BatteryData, EG4ModbusReader
 from .mqtt import MQTTPublisher
 from .monitor import BatteryMonitor
@@ -29,6 +29,7 @@ from .web import WebServer
 
 __all__ = [
     "Config",
+    "BatteryConfig",
     "BatteryData",
     "EG4ModbusReader",
     "MQTTPublisher",

@@ -4,7 +4,7 @@ Main battery monitor coordinator.
 
 import logging
 import time
-from typing import Optional
+from typing import Optional, List, Dict
 
 from .config import Config
 from .battery import BatteryData, EG4ModbusReader
@@ -16,16 +16,23 @@ logger = logging.getLogger(__name__)
 
 
 class BatteryMonitor:
-    """Main application coordinator."""
+    """Main application coordinator for multiple batteries."""
     
     def __init__(self, config: Config):
         self.config = config
-        self.reader = EG4ModbusReader(config)
+        
+        # Create readers for each battery
+        self.readers: List[EG4ModbusReader] = []
+        for batt_config in config.batteries:
+            self.readers.append(EG4ModbusReader(batt_config))
+        
         self.mqtt = MQTTPublisher(config)
         self.ui = TerminalUI() if config.ui_enabled else HeadlessUI()
         self.web: Optional[WebServer] = None
         self.running = False
-        self.data = BatteryData()
+        
+        # Store data for all batteries
+        self.battery_data: Dict[str, BatteryData] = {}
         
         # Initialize web server if enabled
         if config.web_enabled:
@@ -36,7 +43,9 @@ class BatteryMonitor:
         self.running = True
         
         logger.info("Starting EG4 Battery Monitor")
-        logger.info(f"Battery: {self.config.battery_ip}:{self.config.battery_port}")
+        logger.info(f"Monitoring {len(self.readers)} battery(ies):")
+        for reader in self.readers:
+            logger.info(f"  - {reader.name} at {reader.config.ip}:{reader.config.port}")
         logger.info(f"MQTT: {self.config.mqtt_broker}:{self.config.mqtt_port}")
         logger.info(f"Poll interval: {self.config.poll_interval}s")
         
@@ -46,8 +55,9 @@ class BatteryMonitor:
             logger.info(f"Web GUI: http://{self.config.web_host}:{self.config.web_port}")
         
         # Initial connections
-        if not self.reader.connect():
-            logger.warning("Could not connect to battery. Will retry...")
+        for reader in self.readers:
+            if not reader.connect():
+                logger.warning(f"Could not connect to {reader.name}. Will retry...")
         
         if not self.mqtt.connect():
             logger.warning("Could not connect to MQTT. Will retry...")
@@ -67,32 +77,41 @@ class BatteryMonitor:
             self.stop()
     
     def _poll_cycle(self):
-        """Execute one poll cycle."""
-        # Poll battery
-        self.data = self.reader.poll()
+        """Execute one poll cycle for all batteries."""
+        all_data = []
         
-        # Publish to MQTT
-        self.mqtt.publish(self.data)
+        for reader in self.readers:
+            # Poll battery
+            data = reader.poll()
+            self.battery_data[data.battery_id] = data
+            all_data.append(data)
+            
+            # Publish to MQTT
+            self.mqtt.publish(data)
         
         # Update web server data
         if self.web:
-            self.web.update_data(self.data, self.mqtt.connected)
+            self.web.update_data(all_data, self.mqtt.connected)
         
         # Update terminal UI
         if self.config.ui_enabled:
-            self.ui.render(self.data, self.mqtt.connected)
+            self.ui.render(all_data, self.mqtt.connected)
     
     def stop(self):
         """Stop the battery monitor."""
         self.running = False
-        self.reader.disconnect()
+        for reader in self.readers:
+            reader.disconnect()
         self.mqtt.disconnect()
         if self.web:
             self.web.stop()
         logger.info("Battery monitor stopped")
     
-    def poll_once(self) -> BatteryData:
-        """Poll once and return data (for external use)."""
-        if not self.reader.connected:
-            self.reader.connect()
-        return self.reader.poll()
+    def poll_once(self) -> List[BatteryData]:
+        """Poll all batteries once and return data (for external use)."""
+        results = []
+        for reader in self.readers:
+            if not reader.connected:
+                reader.connect()
+            results.append(reader.poll())
+        return results
