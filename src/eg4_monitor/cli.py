@@ -165,16 +165,18 @@ def build_config(args) -> Config:
             print(f"Error loading config: {e}", file=sys.stderr)
             sys.exit(1)
     
-    # Override with environment variables
-    env_config = Config.from_env()
-    
-    # Override with command-line arguments
+    # Override with command-line arguments for single battery (backwards compat)
     if args.battery_ip:
-        config.battery_ip = args.battery_ip
-    if args.battery_port:
-        config.battery_port = args.battery_port
-    if args.device_id:
-        config.device_id = args.device_id
+        # If user specifies battery IP on command line, use it for first battery
+        if config.batteries:
+            config.batteries[0].ip = args.battery_ip
+        else:
+            from .config import BatteryConfig
+            config.batteries = [BatteryConfig(ip=args.battery_ip)]
+    if args.battery_port and config.batteries:
+        config.batteries[0].port = args.battery_port
+    if args.device_id and config.batteries:
+        config.batteries[0].device_id = args.device_id
     
     if args.mqtt_broker:
         config.mqtt_broker = args.mqtt_broker
@@ -210,19 +212,26 @@ def main():
     
     setup_logging(config.debug)
     
+    # Debug output
+    logging.info(f"Loaded config with {len(config.batteries)} battery(ies):")
+    for i, batt in enumerate(config.batteries):
+        logging.info(f"  [{i+1}] {batt.name} @ {batt.ip}:{batt.port} (ID: {batt.device_id})")
+    
     # JSON mode: single reading and exit
     if args.json:
         from .battery import EG4ModbusReader
         
-        reader = EG4ModbusReader(config)
-        if not reader.connect():
-            print(json.dumps({"error": "Connection failed"}))
-            sys.exit(1)
+        all_data = []
+        for batt_config in config.batteries:
+            reader = EG4ModbusReader(batt_config)
+            if reader.connect():
+                data = reader.poll()
+                reader.disconnect()
+                all_data.append(data.to_dict())
+            else:
+                all_data.append({"name": batt_config.name, "error": "Connection failed"})
         
-        data = reader.poll()
-        reader.disconnect()
-        
-        print(json.dumps(data.to_dict(), indent=2))
+        print(json.dumps(all_data, indent=2))
         sys.exit(0)
     
     # Normal monitor mode
@@ -232,6 +241,8 @@ def main():
         monitor.start()
     except Exception as e:
         logging.error(f"Fatal error: {e}")
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
 
 

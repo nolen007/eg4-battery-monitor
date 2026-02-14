@@ -65,11 +65,26 @@ class Config:
     @classmethod
     def from_dict(cls, data: dict) -> "Config":
         """Create config from a dictionary."""
-        config = cls()
+        # Create config without triggering __post_init__ default battery
+        config = cls.__new__(cls)
+        
+        # Set all defaults first
+        config.batteries = []
+        config.mqtt_broker = "localhost"
+        config.mqtt_port = 1883
+        config.mqtt_username = ""
+        config.mqtt_password = ""
+        config.mqtt_base_topic = "homeassistant"
+        config.mqtt_client_id = ""
+        config.web_enabled = True
+        config.web_host = "0.0.0.0"
+        config.web_port = 5000
+        config.poll_interval = 30
+        config.ui_enabled = True
+        config.debug = False
         
         # Battery settings - support both old single-battery and new multi-battery format
         if "batteries" in data:
-            config.batteries = []
             for batt in data["batteries"]:
                 config.batteries.append(BatteryConfig(
                     name=batt.get("name", "Battery"),
@@ -81,13 +96,16 @@ class Config:
         elif "battery" in data:
             # Legacy single battery config
             battery = data["battery"]
-            config.batteries = [BatteryConfig(
+            config.batteries.append(BatteryConfig(
                 name=battery.get("name", "EG4 WallMount 280Ah"),
                 ip=battery.get("ip", "192.168.130.139"),
                 port=battery.get("port", 4196),
                 device_id=battery.get("device_id", 1),
                 protocol=battery.get("protocol", "eg4"),
-            )]
+            ))
+        else:
+            # No battery config, use default
+            config.batteries.append(BatteryConfig())
         
         # MQTT settings
         if "mqtt" in data:
