@@ -288,12 +288,12 @@ class EG4ModbusReader:
         data.soh = float(regs[32])
         data.voltage = regs[22] / 100.0
         
-        # Current at reg 24 (signed)
-        data.current = self._signed16(regs[24]) / 100.0
+        # Current at reg 23 (signed, ÷100) - NOT reg 24
+        data.current = self._signed16(regs[23]) / 100.0
         data.power = data.voltage * data.current
         
         # Energy and capacity
-        data.remaining_kwh = regs[25] / 100.0  # Reg 25, not 23
+        data.remaining_kwh = regs[25] / 100.0  # Reg 25
         data.remaining_ah = regs[26] / 100.0   # Reg 26 ÷ 100
         data.design_capacity = regs[27] / 100.0
         data.full_capacity = regs[27] / 100.0
