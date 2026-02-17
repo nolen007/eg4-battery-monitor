@@ -283,8 +283,9 @@ class EG4ModbusReader:
         data.online = True
         
         # Parse registers using corrected EG4 format
-        data.soc = float(regs[19])
-        data.soh = float(regs[21])
+        # Note: SOC is at reg 21, not 19 (19 appears to be something else)
+        data.soc = float(regs[21])
+        data.soh = float(regs[32])  # SOH at reg 32
         data.voltage = regs[22] / 100.0
         data.remaining_kwh = regs[23] / 100.0
         data.current = self._signed16(regs[24]) / 100.0
