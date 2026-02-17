@@ -16,26 +16,31 @@ logger = logging.getLogger(__name__)
 # EG4 WALLMOUNT 280Ah REGISTER MAP
 # =============================================================================
 
+# Format: register -> (name, divisor, unit, description)
 EG4_REGISTER_MAP = {
-    "soc": 19,
-    "soh": 21,
-    "voltage": 22,
-    "current": 24,
-    "remaining_kwh": 25,
-    "design_capacity": 26,
-    "full_capacity": 27,
-    "remaining_ah": 28,
-    "temperature": 30,
-    "max_voltage": 33,
-    "max_current": 35,
-    "cell_max": 37,
-    "cell_min": 38,
-    "cycle_count": 39,
-    "status": 40,
-    "cell_count": 41,
-    "cell_voltage_start": 113,
-    "cell_voltage_count": 16,
+    19: ('soc', 1, '%', 'State of Charge'),
+    21: ('soh', 1, '%', 'State of Health'),
+    22: ('pack_voltage', 100, 'V', 'Pack Voltage'),
+    23: ('remaining_kwh', 100, 'kWh', 'Remaining Energy'),
+    24: ('current', 100, 'A', 'Current'),
+    25: ('full_energy_kwh', 1000, 'kWh', 'Full Energy Capacity'),
+    26: ('remaining_ah', 100, 'Ah', 'Remaining Capacity'),
+    27: ('design_capacity', 100, 'Ah', 'Design Capacity'),
+    28: ('unknown_28', 1, '', 'Unknown'),
+    30: ('temperature', 10, '°C', 'Battery Temperature'),
+    32: ('soh_2', 1, '%', 'State of Health (alt)'),
+    33: ('max_charge_voltage', 100, 'V', 'Max Charge Voltage'),
+    35: ('max_current', 100, 'A', 'Max Current Rating'),
+    37: ('cell_max_voltage', 1000, 'V', 'Highest Cell Voltage'),
+    38: ('cell_min_voltage', 1000, 'V', 'Lowest Cell Voltage'),
+    39: ('cycle_count', 1, '', 'Charge Cycles'),
+    40: ('status_flags', 1, '', 'Status Flags'),
+    41: ('cell_count', 1, '', 'Number of Cells'),
 }
+
+# Cell voltage registers
+CELL_VOLTAGE_START = 113
+CELL_VOLTAGE_COUNT = 16
 
 # =============================================================================
 # ECO-WORTHY / PACE BMS REGISTER MAP
@@ -256,16 +261,17 @@ class EG4ModbusReader:
         
         data.online = True
         
-        # Parse registers - EG4 format
+        # Parse registers using corrected EG4 format
         data.soc = float(regs[19])
         data.soh = float(regs[21])
         data.voltage = regs[22] / 100.0
+        data.remaining_kwh = regs[23] / 100.0
         data.current = self._signed16(regs[24]) / 100.0
         data.power = data.voltage * data.current
-        data.remaining_kwh = regs[25] / 100.0
-        data.design_capacity = regs[26] / 100.0
-        data.full_capacity = regs[27] / 100.0
-        data.remaining_ah = regs[28] / 10.0
+        # reg 25 = full_energy_kwh (÷1000)
+        data.remaining_ah = regs[26] / 100.0
+        data.design_capacity = regs[27] / 100.0
+        data.full_capacity = regs[27] / 100.0  # Use design as full for now
         data.temperature = regs[30] / 10.0
         data.max_voltage = regs[33] / 100.0
         data.max_current = regs[35] / 100.0
@@ -277,9 +283,7 @@ class EG4ModbusReader:
         data.cell_delta = (data.cell_max - data.cell_min) * 1000
         
         # Read cell voltages (registers 113-128)
-        cell_start = EG4_REGISTER_MAP["cell_voltage_start"]
-        cell_count = EG4_REGISTER_MAP["cell_voltage_count"]
-        cell_regs = self._read_registers(cell_start, cell_count)
+        cell_regs = self._read_registers(CELL_VOLTAGE_START, CELL_VOLTAGE_COUNT)
         if cell_regs:
             data.cell_voltages = [v / 1000.0 for v in cell_regs]
         
