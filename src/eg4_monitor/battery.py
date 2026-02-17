@@ -283,17 +283,21 @@ class EG4ModbusReader:
         data.online = True
         
         # Parse registers using corrected EG4 format
-        # Note: SOC is at reg 21, not 19 (19 appears to be something else)
+        # Reg 21: SOC, Reg 32: SOH
         data.soc = float(regs[21])
-        data.soh = float(regs[32])  # SOH at reg 32
+        data.soh = float(regs[32])
         data.voltage = regs[22] / 100.0
-        data.remaining_kwh = regs[23] / 100.0
+        
+        # Current at reg 24 (signed)
         data.current = self._signed16(regs[24]) / 100.0
         data.power = data.voltage * data.current
-        # reg 25 = full_energy_kwh (÷1000)
-        data.remaining_ah = regs[26] / 100.0
+        
+        # Energy and capacity
+        data.remaining_kwh = regs[25] / 100.0  # Reg 25, not 23
+        data.remaining_ah = regs[26] / 100.0   # Reg 26 ÷ 100
         data.design_capacity = regs[27] / 100.0
-        data.full_capacity = regs[27] / 100.0  # Use design as full for now
+        data.full_capacity = regs[27] / 100.0
+        
         data.temperature = regs[30] / 10.0
         data.max_voltage = regs[33] / 100.0
         data.max_current = regs[35] / 100.0
