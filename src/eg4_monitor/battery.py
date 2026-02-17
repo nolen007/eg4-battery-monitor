@@ -38,9 +38,30 @@ EG4_REGISTER_MAP = {
     41: ('cell_count', 1, '', 'Number of Cells'),
 }
 
-# Cell voltage registers
-CELL_VOLTAGE_START = 113
-CELL_VOLTAGE_COUNT = 16
+# EG4 Cell voltage registers
+EG4_CELL_VOLTAGE_START = 113
+EG4_CELL_VOLTAGE_COUNT = 16
+
+# =============================================================================
+# ECO-WORTHY 314Ah REGISTER MAP (PACE BMS)
+# =============================================================================
+
+ECOWORTHY_REGISTER_MAP = {
+    0: ('current', 100, 'A', 'Current (signed)'),
+    1: ('pack_voltage', 100, 'V', 'Pack Voltage'),
+    2: ('soc', 1, '%', 'State of Charge'),
+    3: ('soh', 1, '%', 'State of Health'),
+    4: ('remaining_ah', 100, 'Ah', 'Remaining Capacity'),
+    5: ('design_capacity', 100, 'Ah', 'Design Capacity'),
+    6: ('full_capacity', 100, 'Ah', 'Full Capacity'),
+    7: ('cycle_count', 1, '', 'Charge Cycles'),
+}
+
+# ECO-WORTHY Cell voltage registers (15-30 for 16 cells)
+ECOWORTHY_CELL_VOLTAGE_START = 15
+ECOWORTHY_CELL_VOLTAGE_COUNT = 16
+# Temperature registers (31-36)
+ECOWORTHY_TEMP_START = 31
 
 # =============================================================================
 # ECO-WORTHY / PACE BMS REGISTER MAP
@@ -283,7 +304,7 @@ class EG4ModbusReader:
         data.cell_delta = (data.cell_max - data.cell_min) * 1000
         
         # Read cell voltages (registers 113-128)
-        cell_regs = self._read_registers(CELL_VOLTAGE_START, CELL_VOLTAGE_COUNT)
+        cell_regs = self._read_registers(EG4_CELL_VOLTAGE_START, EG4_CELL_VOLTAGE_COUNT)
         if cell_regs:
             data.cell_voltages = [v / 1000.0 for v in cell_regs]
         
@@ -296,7 +317,7 @@ class EG4ModbusReader:
         return data
     
     def _poll_ecoworthy(self, data: BatteryData) -> BatteryData:
-        """Poll using ECO-WORTHY/PACE register map."""
+        """Poll using ECO-WORTHY/PACE BMS register map."""
         # Read main registers (0-40)
         regs = self._read_registers(0, 40)
         if not regs:
@@ -305,51 +326,36 @@ class EG4ModbusReader:
         
         data.online = True
         
-        # Parse registers - ECO-WORTHY format
-        # Reg 1: Voltage (÷100)
-        # Reg 2: SOC
-        # Reg 3: SOH
-        # Reg 4: Remaining Ah (÷100)
-        # Reg 5: Design Capacity (÷100)
-        # Reg 6: Full Capacity (÷100)
-        # Reg 7: Current (÷100, signed)
-        # Regs 15-30: Cell voltages (÷1000)
-        # Regs 31-35: Temperatures (÷10)
-        
+        # Parse ECO-WORTHY registers
+        data.current = self._signed16(regs[0]) / 100.0
         data.voltage = regs[1] / 100.0
         data.soc = float(regs[2])
         data.soh = float(regs[3])
         data.remaining_ah = regs[4] / 100.0
         data.design_capacity = regs[5] / 100.0
         data.full_capacity = regs[6] / 100.0
-        data.current = self._signed16(regs[7]) / 100.0
+        data.cycle_count = regs[7]
         data.power = data.voltage * data.current
-        data.remaining_kwh = data.voltage * data.remaining_ah / 1000.0
+        data.remaining_kwh = (data.remaining_ah * data.voltage) / 1000.0
         
-        # Cell voltages at registers 15-30 (16 cells)
-        data.cell_voltages = [regs[i] / 1000.0 for i in range(15, 31)]
+        # Cell voltages are in registers 15-30
         data.cell_count = 16
+        data.cell_voltages = []
+        for i in range(ECOWORTHY_CELL_VOLTAGE_START, ECOWORTHY_CELL_VOLTAGE_START + ECOWORTHY_CELL_VOLTAGE_COUNT):
+            voltage = regs[i] / 1000.0
+            # Filter out invalid readings (65535 = 0xFFFF)
+            if regs[i] != 65535 and 2.0 <= voltage <= 4.0:
+                data.cell_voltages.append(voltage)
         
-        # Filter out invalid cells (65.535V = 0xFFFF) and calculate min/max
-        valid_cells = [v for v in data.cell_voltages if 2.0 < v < 4.5]
-        if valid_cells:
-            data.cell_min = min(valid_cells)
-            data.cell_max = max(valid_cells)
+        if data.cell_voltages:
+            data.cell_min = min(data.cell_voltages)
+            data.cell_max = max(data.cell_voltages)
             data.cell_delta = (data.cell_max - data.cell_min) * 1000
-        else:
-            data.cell_min = 0
-            data.cell_max = 0
-            data.cell_delta = 0
+            data.cell_count = len(data.cell_voltages)
         
-        # Temperature - average of sensors at registers 31-35
-        temps = [regs[i] / 10.0 for i in range(31, 36) if regs[i] < 1000]
-        data.temperature = sum(temps) / len(temps) if temps else 0
-        
-        # These aren't available in same format, use defaults
-        data.cycle_count = 0
-        data.status = 0
-        data.max_voltage = 58.4  # Typical for 16S LiFePO4
-        data.max_current = 200.0
+        # Temperature from register 31 (first temp sensor)
+        if regs[31] != 65535 and regs[31] < 1000:
+            data.temperature = regs[31] / 10.0
         
         # Check for alarms
         data.alarms = self._check_alarms(data)
