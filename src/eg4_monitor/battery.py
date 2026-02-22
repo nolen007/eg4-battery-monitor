@@ -1,8 +1,11 @@
 """
-EG4 Battery data models and Modbus communication.
+BMS Battery data models and Modbus communication.
+Supports: EG4, ECO-WORTHY/PACE, JK BMS PB series
 """
 
 import logging
+import socket
+import struct
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional, List
@@ -295,6 +298,66 @@ class EG4ModbusReader:
         """Convert unsigned 16-bit to signed."""
         return value - 65536 if value > 32767 else value
     
+    @staticmethod
+    def _crc16_modbus(data: bytes) -> int:
+        """Calculate Modbus CRC16."""
+        crc = 0xFFFF
+        for byte in data:
+            crc ^= byte
+            for _ in range(8):
+                if crc & 0x0001:
+                    crc = (crc >> 1) ^ 0xA001
+                else:
+                    crc >>= 1
+        return crc
+    
+    def _read_registers_raw(self, address: int, count: int) -> Optional[List[int]]:
+        """Read holding registers using raw Modbus RTU over TCP (for JK BMS)."""
+        try:
+            # Build Modbus RTU frame
+            frame = bytes([self.config.device_id, 0x03])  # Device ID + Function 03
+            frame += struct.pack('>HH', address, count)   # Start address + count (big-endian)
+            crc = self._crc16_modbus(frame)
+            frame += struct.pack('<H', crc)               # CRC (little-endian)
+            
+            # Create socket and send
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(5)
+            sock.connect((self.config.ip, self.config.port))
+            sock.send(frame)
+            
+            # Receive response
+            import time
+            time.sleep(0.3)
+            response = sock.recv(1024)
+            sock.close()
+            
+            if not response or len(response) < 5:
+                logger.warning(f"JK BMS: No/short response for 0x{address:04X}")
+                return None
+            
+            # Check for error response
+            if response[1] & 0x80:
+                logger.warning(f"JK BMS: Modbus error 0x{response[2]:02X} at 0x{address:04X}")
+                return None
+            
+            # Parse response
+            byte_count = response[2]
+            registers = []
+            for i in range(3, 3 + byte_count, 2):
+                if i + 1 < len(response):
+                    reg_value = (response[i] << 8) | response[i + 1]
+                    registers.append(reg_value)
+            
+            return registers
+            
+        except socket.timeout:
+            logger.warning(f"JK BMS: Timeout reading 0x{address:04X}")
+            return None
+        except Exception as e:
+            logger.error(f"JK BMS: Raw read error at 0x{address:04X}: {e}")
+            return None
+    
     def poll(self) -> BatteryData:
         """Poll the battery and return current data."""
         data = BatteryData(
@@ -415,12 +478,17 @@ class EG4ModbusReader:
         return data
     
     def _poll_jkbms(self, data: BatteryData) -> BatteryData:
-        """Poll using JK BMS PB series (Inverter BMS) Modbus protocol."""
+        """Poll using JK BMS PB series (Inverter BMS) Modbus protocol.
+        
+        Note: JK BMS with Waveshare in TCP Server mode requires raw Modbus RTU
+        frames (not Modbus TCP), so we use _read_registers_raw() instead of
+        the pymodbus client.
+        """
         logger.debug(f"JK BMS: Starting poll for {self.name}")
         
         # Read cell voltages (0x1200, 16 registers)
         logger.debug(f"JK BMS: Reading cell voltages at 0x1200")
-        cell_regs = self._read_registers(JK_REGISTER_MAP["cell_voltage_start"], 16)
+        cell_regs = self._read_registers_raw(JK_REGISTER_MAP["cell_voltage_start"], 16)
         if not cell_regs:
             logger.warning(f"JK BMS: Failed to read cell voltages")
             self._connected = False
@@ -442,13 +510,13 @@ class EG4ModbusReader:
         
         # Read SOC (0x12A6) - SOC is in low byte
         logger.debug(f"JK BMS: Reading SOC at 0x12A6")
-        soc_regs = self._read_registers(JK_REGISTER_MAP["balance_soc"], 1)
+        soc_regs = self._read_registers_raw(JK_REGISTER_MAP["balance_soc"], 1)
         if soc_regs:
             data.soc = float(soc_regs[0] & 0xFF)
         
         # Read pack voltage, power, current (0x1290, 6 registers = 3 x UINT32/INT32)
         logger.debug(f"JK BMS: Reading pack data at 0x1290")
-        pack_regs = self._read_registers(JK_REGISTER_MAP["pack_voltage"], 6)
+        pack_regs = self._read_registers_raw(JK_REGISTER_MAP["pack_voltage"], 6)
         if pack_regs and len(pack_regs) >= 6:
             # Pack Voltage: UINT32 in mV (registers 0-1, but JK packs them)
             # JK returns data without gaps, so read as sequential 16-bit values
@@ -469,7 +537,7 @@ class EG4ModbusReader:
         
         # Read capacity and cycles (0x12AA, 6 registers)
         logger.debug(f"JK BMS: Reading capacity at 0x12AA")
-        cap_regs = self._read_registers(JK_REGISTER_MAP["remaining_capacity"], 6)
+        cap_regs = self._read_registers_raw(JK_REGISTER_MAP["remaining_capacity"], 6)
         if cap_regs and len(cap_regs) >= 6:
             # Remaining capacity: UINT32 in mAh (swap byte order for JK)
             remaining_raw = (pack_regs[1] << 16) | pack_regs[0] if pack_regs else 0
@@ -491,7 +559,7 @@ class EG4ModbusReader:
         
         # Read temperatures (0x12F2, 5 registers)
         logger.debug(f"JK BMS: Reading temperatures at 0x12F2")
-        temp_regs = self._read_registers(JK_REGISTER_MAP["temp_mos"], 5)
+        temp_regs = self._read_registers_raw(JK_REGISTER_MAP["temp_mos"], 5)
         if temp_regs:
             # Find first valid temperature (skip MOS temp if it looks wrong)
             for i, val in enumerate(temp_regs):
