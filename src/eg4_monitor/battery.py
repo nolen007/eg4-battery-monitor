@@ -277,7 +277,7 @@ class EG4ModbusReader:
             result = self.client.read_holding_registers(
                 address=address,
                 count=count,
-                slave=self.config.device_id,
+                device_id=self.config.device_id,
             )
             
             if result.isError():
