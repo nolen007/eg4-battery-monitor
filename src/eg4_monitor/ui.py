@@ -59,7 +59,7 @@ class TerminalUI:
         
         lines.append(f"║  SOC: {data.soc:5.1f}%  {soc_bar}   V: {data.voltage:5.2f}V   I: {data.current:+6.2f}A  ║")
         lines.append(f"║  Power: {data.power:+7.1f}W   Temp: {data.temperature:5.1f}°C   Remaining: {data.remaining_kwh:5.2f}kWh  ║")
-        lines.append(f"║  Cells: {data.cell_min:.3f}V - {data.cell_max:.3f}V  Δ{data.cell_delta:4.0f}mV   Cycles: {data.cycle_count:<6}   ║")
+        lines.append(f"║  Cells: {data.cell_min:.3f}V - {data.cell_max:.3f}V  Δ{data.cell_delta:4.0f}mV   SOH: {data.soh:.0f}%       ║")
         
         return lines
     

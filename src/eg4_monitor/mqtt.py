@@ -121,7 +121,6 @@ class MQTTPublisher:
             ("cell_min", "Cell Min Voltage", "V", "voltage", "measurement"),
             ("cell_max", "Cell Max Voltage", "V", "voltage", "measurement"),
             ("cell_delta", "Cell Delta", "mV", None, "measurement"),
-            ("cycle_count", "Cycle Count", "cycles", None, "total_increasing"),
             ("alarm_count", "Alarm Count", "", None, "measurement"),
         ]
         
@@ -200,7 +199,6 @@ class MQTTPublisher:
             "cell_min": round(data.cell_min, 3),
             "cell_max": round(data.cell_max, 3),
             "cell_delta": round(data.cell_delta, 1),
-            "cycle_count": data.cycle_count,
             "alarm_count": data.alarm_count,
             "online": data.online,
             "timestamp": data.timestamp,

@@ -155,7 +155,6 @@ class BatteryData:
     # State
     soc: float = 0.0
     soh: float = 0.0
-    cycle_count: int = 0
     status: int = 0
     
     # Electrical
@@ -194,7 +193,6 @@ class BatteryData:
             "online": self.online,
             "soc": self.soc,
             "soh": self.soh,
-            "cycle_count": self.cycle_count,
             "status": self.status,
             "voltage": round(self.voltage, 2),
             "current": round(self.current, 2),
@@ -400,17 +398,18 @@ class EG4ModbusReader:
         data.power = data.voltage * data.current
         
         # Energy and capacity
-        data.remaining_kwh = regs[25] / 1000.0  # Reg 25 ÷ 1000
         data.remaining_ah = regs[26] / 100.0    # Reg 26 ÷ 100
         data.design_capacity = regs[27] / 100.0
         data.full_capacity = regs[27] / 100.0
+        
+        # Calculate remaining_kwh from Ah and voltage (more reliable than reg 25)
+        data.remaining_kwh = (data.remaining_ah * data.voltage) / 1000.0
         
         data.temperature = regs[30] / 10.0
         data.max_voltage = regs[33] / 100.0
         data.max_current = regs[35] / 100.0
         data.cell_max = regs[37] / 1000.0
         data.cell_min = regs[38] / 1000.0
-        data.cycle_count = regs[39]
         data.status = regs[40]
         data.cell_count = regs[41]
         data.cell_delta = (data.cell_max - data.cell_min) * 1000
@@ -446,7 +445,6 @@ class EG4ModbusReader:
         data.remaining_ah = regs[4] / 100.0
         data.design_capacity = regs[5] / 100.0
         data.full_capacity = regs[6] / 100.0
-        data.cycle_count = regs[7]
         data.power = data.voltage * data.current
         data.remaining_kwh = (data.remaining_ah * data.voltage) / 1000.0
         
@@ -535,13 +533,11 @@ class EG4ModbusReader:
                 pack_i_raw -= 0x100000000
             data.current = pack_i_raw / 1000.0
         
-        # Read capacity and cycles (0x12AA, 6 registers)
+        # Read capacity (0x12AA, 4 registers - skip cycles)
         logger.debug(f"JK BMS: Reading capacity at 0x12AA")
-        cap_regs = self._read_registers_raw(JK_REGISTER_MAP["remaining_capacity"], 6)
-        if cap_regs and len(cap_regs) >= 6:
+        cap_regs = self._read_registers_raw(JK_REGISTER_MAP["remaining_capacity"], 4)
+        if cap_regs and len(cap_regs) >= 4:
             # Remaining capacity: UINT32 in mAh (swap byte order for JK)
-            remaining_raw = (pack_regs[1] << 16) | pack_regs[0] if pack_regs else 0
-            # Actually read from cap_regs with correct JK byte order
             remaining_raw = (cap_regs[1] << 16) | cap_regs[0]
             data.remaining_ah = remaining_raw / 1000.0
             
@@ -549,9 +545,6 @@ class EG4ModbusReader:
             nominal_raw = (cap_regs[3] << 16) | cap_regs[2]
             data.design_capacity = nominal_raw / 1000.0
             data.full_capacity = data.design_capacity
-            
-            # Cycle count: UINT32
-            data.cycle_count = (cap_regs[5] << 16) | cap_regs[4]
         
         # Calculate remaining kWh
         if data.remaining_ah and data.voltage:

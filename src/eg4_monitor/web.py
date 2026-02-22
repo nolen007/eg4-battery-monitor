@@ -174,7 +174,7 @@ class WebServer:
                 <div class="metrics-row">
                     <div class="metric"><div class="label">Energy</div><div class="value">${b.remaining_kwh?.toFixed(2)||'--'}<span class="unit">kWh</span></div></div>
                     <div class="metric"><div class="label">SOH</div><div class="value">${b.soh?.toFixed(0)||'--'}<span class="unit">%</span></div></div>
-                    <div class="metric"><div class="label">Cycles</div><div class="value">${b.cycle_count||'--'}</div></div>
+                    <div class="metric"><div class="label">SOH</div><div class="value">${b.soh||'--'}%</div></div>
                     <div class="metric"><div class="label">Cell Δ</div><div class="value">${b.cell_delta?.toFixed(0)||'--'}<span class="unit">mV</span></div></div>
                 </div>
                 ${cells?`<div style="font-size:0.8em;color:#888;margin-top:10px;">Cells: ${b.cell_min?.toFixed(3)||'--'}V - ${b.cell_max?.toFixed(3)||'--'}V</div><div class="cell-grid">${cells}</div>`:''}
