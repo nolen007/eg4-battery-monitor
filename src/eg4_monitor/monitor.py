@@ -42,7 +42,7 @@ class BatteryMonitor:
         """Start the battery monitor."""
         self.running = True
         
-        logger.info("Starting EG4 Battery Monitor")
+        logger.info("Starting BMS Battery Monitor")
         logger.info(f"Monitoring {len(self.readers)} battery(ies):")
         for reader in self.readers:
             logger.info(f"  - {reader.name} at {reader.config.ip}:{reader.config.port}")

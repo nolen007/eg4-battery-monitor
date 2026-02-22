@@ -72,7 +72,7 @@ class TerminalUI:
         
         # Header
         print("╔══════════════════════════════════════════════════════════════════╗")
-        print("║              EG4 MULTI-BATTERY MONITOR                           ║")
+        print("║              BMS MULTI-BATTERY MONITOR                           ║")
         print("╠══════════════════════════════════════════════════════════════════╣")
         
         timestamp = batteries[0].timestamp[:19] if batteries else "--"

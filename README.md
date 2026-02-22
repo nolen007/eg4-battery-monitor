@@ -1,10 +1,10 @@
-# EG4 Battery Monitor
+# BMS Battery Monitor
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-MQTT-blue.svg)](https://www.home-assistant.io/)
 
-A Python-based monitoring solution for **EG4 WallMount 280Ah LiFePO4 batteries** with:
+A Python-based monitoring solution for **multiple BMS types** including EG4, ECO-WORTHY, and JK BMS batteries:
 - 🌐 **Web GUI Dashboard** - Beautiful real-time monitoring in your browser
 - 🏠 **Home Assistant Integration** - MQTT auto-discovery with all 16 cell voltages
 - 📊 **Terminal UI** - Console-based monitoring option
@@ -18,12 +18,15 @@ A Python-based monitoring solution for **EG4 WallMount 280Ah LiFePO4 batteries**
 - 🏠 **Home Assistant Integration** - MQTT auto-discovery for all sensors including individual cell voltages
 - ⚠️ **Alarm Detection** - Automatic alerts for over/under voltage, temperature, and cell imbalance
 - 📈 **Cell-level Monitoring** - All 16 individual cell voltages with min/max highlighting
+- 🔌 **Multi-BMS Support** - EG4, ECO-WORTHY/PACE, and JK BMS PB series
 
 ## Supported Hardware
 
-- **Battery**: EG4 WallMount Indoor 280Ah (14.3kWh)
+- **EG4 Batteries**: WallMount Indoor 280Ah (14.3kWh) and compatible models
+- **ECO-WORTHY Batteries**: 314Ah and other PACE BMS equipped batteries
+- **JK BMS**: PB series Inverter BMS with touchscreen
 - **Adapter**: Waveshare RS485 TO ETH (B) or similar RS485-to-Ethernet converters
-- **Protocol**: Modbus RTU over TCP (EG4/LuxPower proprietary register map)
+- **Protocol**: Modbus RTU over TCP
 
 ---
 

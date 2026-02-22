@@ -1,5 +1,5 @@
 """
-Web GUI for EG4 Battery Monitor - Multi-battery support.
+Web GUI for BMS Battery Monitor - Multi-battery support.
 """
 
 import json
@@ -80,7 +80,7 @@ class WebServer:
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EG4 Battery Monitor</title>
+    <title>BMS Battery Monitor</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: #eee; min-height: 100vh; padding: 20px; }
@@ -133,7 +133,7 @@ class WebServer:
 <body>
     <div class="container">
         <header>
-            <h1>🔋 EG4 Battery Monitor</h1>
+            <h1>🔋 BMS Battery Monitor</h1>
             <div class="status-bar">
                 <span><span class="status-dot" id="mqtt-status"></span> MQTT</span>
                 <span id="battery-count">0 Batteries</span>
