@@ -521,17 +521,14 @@ class EG4ModbusReader:
             pack_v_raw = (pack_regs[0] << 16) | pack_regs[1]
             data.voltage = pack_v_raw / 1000.0
             
-            # Pack Power: INT32 in W (registers 2-3)
-            pack_p_raw = (pack_regs[2] << 16) | pack_regs[3]
-            if pack_p_raw > 0x7FFFFFFF:
-                pack_p_raw -= 0x100000000
-            data.power = float(pack_p_raw)
-            
             # Pack Current: INT32 in mA (registers 4-5)
             pack_i_raw = (pack_regs[4] << 16) | pack_regs[5]
             if pack_i_raw > 0x7FFFFFFF:
                 pack_i_raw -= 0x100000000
             data.current = pack_i_raw / 1000.0
+            
+            # Calculate power from V * I (more reliable than power register)
+            data.power = data.voltage * data.current
         
         # Read capacity (0x12AA, 4 registers - skip cycles)
         logger.debug(f"JK BMS: Reading capacity at 0x12AA")
