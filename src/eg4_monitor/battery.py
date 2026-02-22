@@ -277,11 +277,11 @@ class EG4ModbusReader:
             result = self.client.read_holding_registers(
                 address=address,
                 count=count,
-                device_id=self.config.device_id,
+                slave=self.config.device_id,
             )
             
             if result.isError():
-                logger.warning(f"Modbus read error at {address} for {self.name}: {result}")
+                logger.warning(f"Modbus read error at 0x{address:04X} for {self.name}: {result}")
                 return None
             
             return result.registers
@@ -416,9 +416,13 @@ class EG4ModbusReader:
     
     def _poll_jkbms(self, data: BatteryData) -> BatteryData:
         """Poll using JK BMS PB series (Inverter BMS) Modbus protocol."""
+        logger.debug(f"JK BMS: Starting poll for {self.name}")
+        
         # Read cell voltages (0x1200, 16 registers)
+        logger.debug(f"JK BMS: Reading cell voltages at 0x1200")
         cell_regs = self._read_registers(JK_REGISTER_MAP["cell_voltage_start"], 16)
         if not cell_regs:
+            logger.warning(f"JK BMS: Failed to read cell voltages")
             self._connected = False
             return data
         
@@ -437,11 +441,13 @@ class EG4ModbusReader:
             data.cell_count = len(data.cell_voltages)
         
         # Read SOC (0x12A6) - SOC is in low byte
+        logger.debug(f"JK BMS: Reading SOC at 0x12A6")
         soc_regs = self._read_registers(JK_REGISTER_MAP["balance_soc"], 1)
         if soc_regs:
             data.soc = float(soc_regs[0] & 0xFF)
         
         # Read pack voltage, power, current (0x1290, 6 registers = 3 x UINT32/INT32)
+        logger.debug(f"JK BMS: Reading pack data at 0x1290")
         pack_regs = self._read_registers(JK_REGISTER_MAP["pack_voltage"], 6)
         if pack_regs and len(pack_regs) >= 6:
             # Pack Voltage: UINT32 in mV (registers 0-1, but JK packs them)
@@ -462,6 +468,7 @@ class EG4ModbusReader:
             data.current = pack_i_raw / 1000.0
         
         # Read capacity and cycles (0x12AA, 6 registers)
+        logger.debug(f"JK BMS: Reading capacity at 0x12AA")
         cap_regs = self._read_registers(JK_REGISTER_MAP["remaining_capacity"], 6)
         if cap_regs and len(cap_regs) >= 6:
             # Remaining capacity: UINT32 in mAh (swap byte order for JK)
@@ -483,6 +490,7 @@ class EG4ModbusReader:
             data.remaining_kwh = (data.remaining_ah * data.voltage) / 1000.0
         
         # Read temperatures (0x12F2, 5 registers)
+        logger.debug(f"JK BMS: Reading temperatures at 0x12F2")
         temp_regs = self._read_registers(JK_REGISTER_MAP["temp_mos"], 5)
         if temp_regs:
             # Find first valid temperature (skip MOS temp if it looks wrong)
