@@ -78,6 +78,48 @@ ECOWORTHY_REGISTER_MAP = {
     "max_voltage": 107,     # ÷100 (from extended registers)
 }
 
+# =============================================================================
+# JK BMS PB SERIES (INVERTER BMS) REGISTER MAP
+# =============================================================================
+# Base address is 0x1000, uses Modbus RTU
+# Protocol: "001-JK BMS RS485 Modbus V1.0"
+# Note: JK Modbus returns packed data (no gaps between values)
+
+JK_REGISTER_MAP = {
+    # Cell voltages: 0x1200-0x121F (16 cells, UINT16, mV)
+    "cell_voltage_start": 0x1200,
+    "cell_voltage_count": 16,
+    
+    # Pack data
+    "avg_cell_voltage": 0x1280,    # UINT16, mV
+    "delta_cell_voltage": 0x1282,  # UINT16, mV
+    "max_cell_voltage": 0x1284,    # UINT16, mV
+    "min_cell_voltage": 0x1286,    # UINT16, mV
+    "max_voltage_cell": 0x128A,    # UINT16, cell number
+    "min_voltage_cell": 0x128C,    # UINT16, cell number
+    
+    "pack_voltage": 0x1290,        # UINT32, mV (2 registers)
+    "pack_power": 0x1294,          # INT32, W (2 registers)
+    "pack_current": 0x1298,        # INT32, mA (2 registers)
+    
+    "alarm_bitmask": 0x12A0,       # UINT32 (2 registers)
+    "balance_current": 0x12A4,     # INT16, mA
+    "balance_soc": 0x12A6,         # High byte: balance status, Low byte: SOC%
+    
+    "remaining_capacity": 0x12AA,  # UINT32, mAh (2 registers)
+    "nominal_capacity": 0x12AE,    # UINT32, mAh (2 registers)
+    "cycle_count": 0x12B2,         # UINT32 (2 registers)
+    "cycle_capacity": 0x12B6,      # UINT32, mAh (2 registers)
+    
+    "runtime": 0x12BA,             # UINT32, seconds (2 registers)
+    "charging_status": 0x12BE,     # UINT16
+    
+    # Temperatures (0x12F2-0x12FA, INT16, 0.1°C)
+    "temp_mos": 0x12F2,            # MOS temperature
+    "temp_start": 0x12F4,          # Battery temp sensors start
+    "temp_count": 4,               # Number of temp sensors
+}
+
 # Alarm thresholds
 ALARM_THRESHOLDS = {
     "pack_overvoltage": 57.6,
@@ -269,6 +311,8 @@ class EG4ModbusReader:
         # Use appropriate protocol
         if self.protocol == "ecoworthy":
             return self._poll_ecoworthy(data)
+        elif self.protocol == "jkbms":
+            return self._poll_jkbms(data)
         else:
             return self._poll_eg4(data)
     
@@ -361,6 +405,99 @@ class EG4ModbusReader:
         # Temperature from register 31 (first temp sensor)
         if regs[31] != 65535 and regs[31] < 1000:
             data.temperature = regs[31] / 10.0
+        
+        # Check for alarms
+        data.alarms = self._check_alarms(data)
+        data.alarm_count = len(data.alarms)
+        
+        logger.debug(f"Polled {self.name}: SOC={data.soc}%, V={data.voltage}V, I={data.current}A")
+        
+        return data
+    
+    def _poll_jkbms(self, data: BatteryData) -> BatteryData:
+        """Poll using JK BMS PB series (Inverter BMS) Modbus protocol."""
+        # Read cell voltages (0x1200, 16 registers)
+        cell_regs = self._read_registers(JK_REGISTER_MAP["cell_voltage_start"], 16)
+        if not cell_regs:
+            self._connected = False
+            return data
+        
+        data.online = True
+        
+        # Parse cell voltages (mV)
+        data.cell_voltages = []
+        for mv in cell_regs:
+            if mv > 0 and mv < 5000:  # Valid range
+                data.cell_voltages.append(mv / 1000.0)
+        
+        if data.cell_voltages:
+            data.cell_min = min(data.cell_voltages)
+            data.cell_max = max(data.cell_voltages)
+            data.cell_delta = (data.cell_max - data.cell_min) * 1000
+            data.cell_count = len(data.cell_voltages)
+        
+        # Read SOC (0x12A6) - SOC is in low byte
+        soc_regs = self._read_registers(JK_REGISTER_MAP["balance_soc"], 1)
+        if soc_regs:
+            data.soc = float(soc_regs[0] & 0xFF)
+        
+        # Read pack voltage, power, current (0x1290, 6 registers = 3 x UINT32/INT32)
+        pack_regs = self._read_registers(JK_REGISTER_MAP["pack_voltage"], 6)
+        if pack_regs and len(pack_regs) >= 6:
+            # Pack Voltage: UINT32 in mV (registers 0-1, but JK packs them)
+            # JK returns data without gaps, so read as sequential 16-bit values
+            pack_v_raw = (pack_regs[0] << 16) | pack_regs[1]
+            data.voltage = pack_v_raw / 1000.0
+            
+            # Pack Power: INT32 in W (registers 2-3)
+            pack_p_raw = (pack_regs[2] << 16) | pack_regs[3]
+            if pack_p_raw > 0x7FFFFFFF:
+                pack_p_raw -= 0x100000000
+            data.power = float(pack_p_raw)
+            
+            # Pack Current: INT32 in mA (registers 4-5)
+            pack_i_raw = (pack_regs[4] << 16) | pack_regs[5]
+            if pack_i_raw > 0x7FFFFFFF:
+                pack_i_raw -= 0x100000000
+            data.current = pack_i_raw / 1000.0
+        
+        # Read capacity and cycles (0x12AA, 6 registers)
+        cap_regs = self._read_registers(JK_REGISTER_MAP["remaining_capacity"], 6)
+        if cap_regs and len(cap_regs) >= 6:
+            # Remaining capacity: UINT32 in mAh (swap byte order for JK)
+            remaining_raw = (pack_regs[1] << 16) | pack_regs[0] if pack_regs else 0
+            # Actually read from cap_regs with correct JK byte order
+            remaining_raw = (cap_regs[1] << 16) | cap_regs[0]
+            data.remaining_ah = remaining_raw / 1000.0
+            
+            # Nominal capacity: UINT32 in mAh
+            nominal_raw = (cap_regs[3] << 16) | cap_regs[2]
+            data.design_capacity = nominal_raw / 1000.0
+            data.full_capacity = data.design_capacity
+            
+            # Cycle count: UINT32
+            data.cycle_count = (cap_regs[5] << 16) | cap_regs[4]
+        
+        # Calculate remaining kWh
+        if data.remaining_ah and data.voltage:
+            data.remaining_kwh = (data.remaining_ah * data.voltage) / 1000.0
+        
+        # Read temperatures (0x12F2, 5 registers)
+        temp_regs = self._read_registers(JK_REGISTER_MAP["temp_mos"], 5)
+        if temp_regs:
+            # Find first valid temperature (skip MOS temp if it looks wrong)
+            for i, val in enumerate(temp_regs):
+                if val != 0 and val != 0xFFFF:
+                    temp_signed = self._signed16(val)
+                    temp_c = temp_signed / 10.0
+                    # Use battery temp (not MOS) if reasonable
+                    if -40 <= temp_c <= 80:
+                        data.temperature = temp_c
+                        break
+        
+        # Default SOH to 100 if not available
+        if data.soh == 0:
+            data.soh = 100.0
         
         # Check for alarms
         data.alarms = self._check_alarms(data)
