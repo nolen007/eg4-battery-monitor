@@ -79,11 +79,16 @@ class WebServer:
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="BMS Monitor">
+    <meta name="theme-color" content="#1a1a2e">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔋</text></svg>">
     <title>BMS Battery Monitor</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: #eee; min-height: 100vh; padding: 20px; }
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: #eee; min-height: 100vh; padding: 20px; padding-top: env(safe-area-inset-top, 20px); padding-bottom: env(safe-area-inset-bottom, 20px); }
         .container { max-width: 1600px; margin: 0 auto; }
         header { text-align: center; margin-bottom: 30px; }
         header h1 { font-size: 2.5em; color: #00d4ff; }
@@ -127,7 +132,39 @@ class WebServer:
         .alarm-item { color: #ff6b6b; padding: 3px 0; font-size: 0.9em; }
         .alarm-item::before { content: "⚠️ "; }
         .last-update { text-align: center; color: #666; margin-top: 30px; font-size: 0.85em; }
-        @media (max-width: 768px) { .battery-grid { grid-template-columns: 1fr; } .metrics-row { grid-template-columns: repeat(2, 1fr); } .cell-grid { grid-template-columns: repeat(4, 1fr); } }
+        
+        /* Tablet */
+        @media (max-width: 1024px) {
+            .battery-grid { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
+        }
+        
+        /* Mobile */
+        @media (max-width: 768px) {
+            body { padding: 10px; }
+            header h1 { font-size: 1.6em; }
+            .status-bar { gap: 15px; font-size: 0.9em; }
+            .summary-row { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+            .summary-card { padding: 12px; }
+            .summary-card .value { font-size: 1.5em; }
+            .battery-grid { grid-template-columns: 1fr; gap: 15px; }
+            .battery-card { padding: 16px; }
+            .battery-name { font-size: 1.1em; }
+            .metrics-row { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+            .metric { padding: 10px 6px; }
+            .metric .value { font-size: 1.2em; }
+            .cell-grid { grid-template-columns: repeat(4, 1fr); gap: 4px; }
+            .cell { padding: 5px 2px; font-size: 0.75em; }
+        }
+        
+        /* Small mobile */
+        @media (max-width: 400px) {
+            header h1 { font-size: 1.3em; }
+            .summary-row { grid-template-columns: 1fr 1fr; }
+            .summary-card .value { font-size: 1.3em; }
+            .metrics-row { grid-template-columns: repeat(2, 1fr); }
+            .cell-grid { grid-template-columns: repeat(4, 1fr); }
+            .cell .cell-voltage { font-size: 0.9em; }
+        }
     </style>
 </head>
 <body>
