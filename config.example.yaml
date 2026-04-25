@@ -63,3 +63,13 @@ monitor:
   ui_enabled: true
   # Enable debug logging
   debug: false
+
+# Virtual Modbus TCP Server — Solar Assistant gateway
+# Exposes all batteries as a single combined Pylontech-compatible Modbus device.
+# Solar Assistant setup:
+#   Settings → Battery monitor → Pylontech (RS485/Modbus) → TCP
+#   IP: <this monitor's IP>    Port: 502    Device ID: 1
+modbus_server:
+  enabled: false          # Set to true to enable
+  host: "0.0.0.0"        # Bind to all interfaces
+  port: 502               # Standard Modbus TCP port (use 5020 if 502 needs root)

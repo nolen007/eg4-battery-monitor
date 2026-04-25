@@ -45,6 +45,11 @@ class Config:
     web_host: str = "0.0.0.0"
     web_port: int = 5000
     
+    # Virtual Modbus TCP Server (for Solar Assistant)
+    modbus_server_enabled: bool = False
+    modbus_server_host: str = "0.0.0.0"
+    modbus_server_port: int = 502
+    
     # Monitor Settings
     poll_interval: int = 30
     ui_enabled: bool = True
@@ -84,6 +89,9 @@ class Config:
         config.web_enabled = True
         config.web_host = "0.0.0.0"
         config.web_port = 5000
+        config.modbus_server_enabled = False
+        config.modbus_server_host = "0.0.0.0"
+        config.modbus_server_port = 502
         config.poll_interval = 30
         config.ui_enabled = True
         config.debug = False
@@ -131,6 +139,13 @@ class Config:
             config.web_enabled = web.get("enabled", config.web_enabled)
             config.web_host = web.get("host", config.web_host)
             config.web_port = web.get("port", config.web_port)
+        
+        # Virtual Modbus server settings (Solar Assistant gateway)
+        if "modbus_server" in data:
+            ms = data["modbus_server"]
+            config.modbus_server_enabled = ms.get("enabled", config.modbus_server_enabled)
+            config.modbus_server_host    = ms.get("host",    config.modbus_server_host)
+            config.modbus_server_port    = ms.get("port",    config.modbus_server_port)
         
         # Monitor settings
         if "monitor" in data:

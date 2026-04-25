@@ -9,6 +9,7 @@ from typing import Optional, List, Dict
 from .config import Config
 from .battery import BatteryData, EG4ModbusReader
 from .canip import CANIPReader
+from .modbus_server import VirtualModbusServer
 from .mqtt import MQTTPublisher
 from .ui import TerminalUI, HeadlessUI
 from .web import WebServer
@@ -33,6 +34,7 @@ class BatteryMonitor:
         self.mqtt = MQTTPublisher(config)
         self.ui = TerminalUI() if config.ui_enabled else HeadlessUI()
         self.web: Optional[WebServer] = None
+        self.modbus_server: Optional[VirtualModbusServer] = None
         self.running = False
         
         # Store data for all batteries
@@ -41,6 +43,13 @@ class BatteryMonitor:
         # Initialize web server if enabled
         if config.web_enabled:
             self.web = WebServer(host=config.web_host, port=config.web_port)
+        
+        # Initialize virtual Modbus server if enabled
+        if config.modbus_server_enabled:
+            self.modbus_server = VirtualModbusServer(
+                host=config.modbus_server_host,
+                port=config.modbus_server_port,
+            )
     
     def start(self):
         """Start the battery monitor."""
@@ -57,6 +66,14 @@ class BatteryMonitor:
         if self.web:
             self.web.start()
             logger.info(f"Web GUI: http://{self.config.web_host}:{self.config.web_port}")
+        
+        # Start virtual Modbus server if enabled
+        if self.modbus_server:
+            self.modbus_server.start()
+            logger.info(
+                f"Virtual Modbus server: {self.config.modbus_server_host}:{self.config.modbus_server_port} "
+                f"(Solar Assistant → Pylontech / TCP / Device ID 1)"
+            )
         
         # Initial connections
         for reader in self.readers:
@@ -97,6 +114,10 @@ class BatteryMonitor:
         if self.web:
             self.web.update_data(all_data, self.mqtt.connected)
         
+        # Update virtual Modbus server registers
+        if self.modbus_server:
+            self.modbus_server.update(all_data)
+        
         # Update terminal UI
         if self.config.ui_enabled:
             self.ui.render(all_data, self.mqtt.connected)
@@ -109,6 +130,8 @@ class BatteryMonitor:
         self.mqtt.disconnect()
         if self.web:
             self.web.stop()
+        if self.modbus_server:
+            self.modbus_server.stop()
         logger.info("Battery monitor stopped")
     
     def poll_once(self) -> List[BatteryData]:
