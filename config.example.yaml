@@ -72,4 +72,4 @@ monitor:
 modbus_server:
   enabled: false          # Set to true to enable
   host: "0.0.0.0"        # Bind to all interfaces
-  port: 502               # Standard Modbus TCP port (use 5020 if 502 needs root)
+  port: 5020              # Use 5020 to avoid needing root (port 502 requires sudo)

@@ -48,7 +48,7 @@ class Config:
     # Virtual Modbus TCP Server (for Solar Assistant)
     modbus_server_enabled: bool = False
     modbus_server_host: str = "0.0.0.0"
-    modbus_server_port: int = 502
+    modbus_server_port: int = 5020
     
     # Monitor Settings
     poll_interval: int = 30
@@ -91,7 +91,7 @@ class Config:
         config.web_port = 5000
         config.modbus_server_enabled = False
         config.modbus_server_host = "0.0.0.0"
-        config.modbus_server_port = 502
+        config.modbus_server_port = 5020
         config.poll_interval = 30
         config.ui_enabled = True
         config.debug = False
