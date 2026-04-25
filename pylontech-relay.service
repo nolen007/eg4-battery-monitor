@@ -1,0 +1,17 @@
+[Unit]
+Description=Pylontech RS485 Relay for Solar Assistant
+After=network.target
+
+[Service]
+Type=simple
+User=solar-assistant
+Group=dialout
+ExecStart=/usr/bin/python3 /home/solar-assistant/pylontech_relay.py \
+    --serial /dev/ttyUSB0 \
+    --host 192.168.x.x \
+    --port 5020
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
