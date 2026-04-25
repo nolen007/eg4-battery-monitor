@@ -25,6 +25,20 @@ batteries:
     #   - Waveshare in TCP Server mode (NOT Modbus TCP to RTU)
     #   - Baud rate: 115200
 
+  - name: "CAN Battery Pack 1"
+    ip: "192.168.1.50"
+    port: 4444             # Port your CAN-to-Ethernet bridge listens on
+    protocol: "canip"      # CAN bus messages tunneled over TCP/IP
+    # Optional CAN/IP settings:
+    # can_pack_address: 0x40   # Pack address byte; 0x40=pack1, 0x41=pack2, …
+    # can_length_prefixed: false  # Set true if bridge prepends a 2-byte frame length
+    # can_sniff_only: false       # Set true to listen passively (no poll request sent)
+    #
+    # Compatible hardware examples:
+    #   - Waveshare CAN-ETH (transparent TCP mode)
+    #   - USR-TCP232-E2 with CAN module
+    #   - Any device forwarding raw 13-byte CAN frames over TCP
+
 mqtt:
   # Home Assistant MQTT broker address
   broker: "192.168.128.149"

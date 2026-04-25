@@ -374,6 +374,15 @@ class EG4ModbusReader:
             return self._poll_ecoworthy(data)
         elif self.protocol == "jkbms":
             return self._poll_jkbms(data)
+        elif self.protocol == "canip":
+            # CAN over IP is handled by a dedicated reader; this path should
+            # not normally be reached because the monitor instantiates a
+            # CANIPReader directly.  Fall back gracefully just in case.
+            logger.warning(
+                f"{self.name}: protocol='canip' but using Modbus reader; "
+                "instantiate CANIPReader instead."
+            )
+            return data
         else:
             return self._poll_eg4(data)
     

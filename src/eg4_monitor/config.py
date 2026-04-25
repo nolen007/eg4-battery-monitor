@@ -17,7 +17,12 @@ class BatteryConfig:
     ip: str = "192.168.130.139"
     port: int = 4196
     device_id: int = 1
-    protocol: str = "eg4"  # eg4, pace, modbus
+    protocol: str = "eg4"  # eg4, ecoworthy, jkbms, canip
+
+    # CAN over IP options (only used when protocol == "canip")
+    can_pack_address: int = 0x40        # Pack address byte (0x40 = pack 1)
+    can_length_prefixed: bool = False   # True if bridge adds a 2-byte length prefix
+    can_sniff_only: bool = False        # True to listen passively (no poll request)
 
 
 @dataclass
@@ -92,6 +97,9 @@ class Config:
                     port=batt.get("port", 4196),
                     device_id=batt.get("device_id", 1),
                     protocol=batt.get("protocol", "eg4"),
+                    can_pack_address=int(batt.get("can_pack_address", 0x40)),
+                    can_length_prefixed=bool(batt.get("can_length_prefixed", False)),
+                    can_sniff_only=bool(batt.get("can_sniff_only", False)),
                 ))
         elif "battery" in data:
             # Legacy single battery config

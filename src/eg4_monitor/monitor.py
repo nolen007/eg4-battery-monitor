@@ -8,6 +8,7 @@ from typing import Optional, List, Dict
 
 from .config import Config
 from .battery import BatteryData, EG4ModbusReader
+from .canip import CANIPReader
 from .mqtt import MQTTPublisher
 from .ui import TerminalUI, HeadlessUI
 from .web import WebServer
@@ -22,9 +23,12 @@ class BatteryMonitor:
         self.config = config
         
         # Create readers for each battery
-        self.readers: List[EG4ModbusReader] = []
+        self.readers = []
         for batt_config in config.batteries:
-            self.readers.append(EG4ModbusReader(batt_config))
+            if batt_config.protocol == "canip":
+                self.readers.append(CANIPReader(batt_config))
+            else:
+                self.readers.append(EG4ModbusReader(batt_config))
         
         self.mqtt = MQTTPublisher(config)
         self.ui = TerminalUI() if config.ui_enabled else HeadlessUI()
