@@ -107,8 +107,11 @@ class BatteryMonitor:
             self.battery_data[data.battery_id] = data
             all_data.append(data)
             
-            # Publish to MQTT
+            # Publish individual battery data to MQTT
             self.mqtt.publish(data)
+        
+        # Publish aggregated data to its own MQTT topic
+        self.mqtt.publish_aggregate(all_data)
         
         # Update web server data
         if self.web:
