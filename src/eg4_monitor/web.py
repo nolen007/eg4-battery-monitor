@@ -225,7 +225,9 @@ class WebServer:
                 const online = batteries.filter(b=>b.online);
                 document.getElementById('total-kwh').textContent = online.reduce((s,b)=>s+(b.remaining_kwh||0),0).toFixed(2);
                 document.getElementById('total-power').textContent = online.reduce((s,b)=>s+(b.power||0),0).toFixed(0);
-                document.getElementById('avg-soc').textContent = online.length ? (online.reduce((s,b)=>s+(b.soc||0),0)/online.length).toFixed(1) : '--';
+                const totalCap = online.reduce((s,b)=>s+(b.full_capacity||0),0);
+                const weightedSoc = totalCap ? online.reduce((s,b)=>s+(b.soc||0)*((b.full_capacity||0)/totalCap),0) : (online.reduce((s,b)=>s+(b.soc||0),0)/online.length);
+                document.getElementById('avg-soc').textContent = online.length ? weightedSoc.toFixed(1) : '--';
                 document.getElementById('online-count').textContent = online.length + '/' + batteries.length;
                 document.getElementById('battery-grid').innerHTML = batteries.map(createBatteryCard).join('');
                 document.getElementById('timestamp').textContent = batteries.length && batteries[0].timestamp ? new Date(batteries[0].timestamp).toLocaleString() : '--';
