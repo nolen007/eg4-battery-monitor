@@ -3,7 +3,7 @@ services:
     image: localhost:5000/eg4-battery-monitor:latest
     container_name: eg4-battery-monitor
     restart: unless-stopped
-    env_file: .env
-    ports:
-      - "5000:5000"
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+    command: ["eg4-monitor", "--config", "/app/config.yaml", "--no-ui"]
     network_mode: host
