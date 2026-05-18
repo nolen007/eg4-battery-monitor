@@ -18,4 +18,3 @@ docs/
 examples/
 *.md
 .env
-config.yaml

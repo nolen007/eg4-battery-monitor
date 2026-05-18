@@ -7,6 +7,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY src/ ./src/
 COPY pyproject.toml .
+COPY config.yaml .
 RUN pip install --no-cache-dir .
 
 ENV EG4_BATTERY_IP="192.168.130.139"
@@ -23,4 +24,4 @@ EXPOSE 5000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:5000')" || exit 1
 
-CMD ["eg4-monitor", "--no-ui"]
+CMD ["eg4-monitor", "--config", "/app/config.yaml", "--no-ui"]

@@ -3,7 +3,4 @@ services:
     image: localhost:5000/eg4-battery-monitor:latest
     container_name: eg4-battery-monitor
     restart: unless-stopped
-    volumes:
-      - ./config.yaml:/etc/eg4-monitor/config.yaml:ro
-    command: ["eg4-monitor", "--config", "/etc/eg4-monitor/config.yaml", "--no-ui"]
     network_mode: host
