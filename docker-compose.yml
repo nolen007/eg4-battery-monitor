@@ -1,6 +1,7 @@
 services:
   eg4-monitor:
-    image: localhost:5000/eg4-battery-monitor:latest
+    build: .
+    image: eg4-battery-monitor:latest
     container_name: eg4-battery-monitor
     restart: unless-stopped
     network_mode: host
